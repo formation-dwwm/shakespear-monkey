@@ -2,13 +2,17 @@
 /* Genetic Algorithm implementation
 /***********************************************************************************/
 
-var GeneticAlgorithm = function(max_units, top_units){
+var GeneticAlgorithm = function(max_units, top_units, strategy){
 	this.max_units = max_units; // max number of units in population
 	this.top_units = top_units; // number of top units (winners) used for evolving population
+
+	this.strategy = strategy;
 	
 	if (this.max_units < this.top_units) this.top_units = this.max_units;
 	
 	this.Population = []; // array of all units in current population
+
+	this.generation = 0;
 }
 
 GeneticAlgorithm.prototype = {
@@ -19,6 +23,8 @@ GeneticAlgorithm.prototype = {
 		
 		this.best_population = 0; // the population number of the best unit
 		this.best_fitness = 0;  // the fitness of the best unit
+
+		this.generation = 0;
 	},
 	
 	// creates a new population
@@ -32,45 +38,53 @@ GeneticAlgorithm.prototype = {
 			// add the new unit to the population 
 			this.Population.push(newUnit);
 		}
-  },
+
+		++this.generation;
+  	},
   
-  createNewUnit: function(index){
-    var newUnit = {
-      value: this.strat__createNewUnit()
-    };
-    
-    // set additional parameters for the new unit
-    newUnit.index = index;
-    newUnit.fitness = 0;
-    newUnit.isWinner = false;
+	createNewUnit: function(index){
+		var newUnit = {
+			value: this.strategy.createNewUnit()
+		};
+		
+		// set additional parameters for the new unit
+		newUnit.index = index;
+		newUnit.fitness = 0;
+		newUnit.isWinner = false;
 
-    return newUnit;
-  },
+		return newUnit;
+	},
 
-  strat__createNewUnit: function(){
-    // Random string
-    return Array.from({ length: 6 }, () => this.randomChar("a", "z")).join(""); 
-  },
+	getDNA: function(unit){
+		return this.strategy.getDNA(unit.value);
+	},
 
-  getDNA: function(unit){
-    return unit.value;
-  },
+	createFromDNA: function(dna, newIndex){
+		var newUnit = {
+			value: this.strategy.createFromDNA(dna)
+		}
 
-  createFromDNA: function(dna, newIndex){
-    var newUnit = {
-      value: this.strat__createFromDNA(dna)
-    }
+		newUnit.index = newIndex;
+		newUnit.fitness = 0;
+		newUnit.isWinner = false;
+		
+		return newUnit;
+	},
 
-    newUnit.index = newIndex;
-    newUnit.fitness = 0;
-    newUnit.isWinner = false;
-      
-    return newUnit;
-  },
+	computeFitness: function(){
+		this.Population.map((unit, unitIdx) => {
+			unit.fitness = this.strategy.computeFitness(unit.value);
+		});
+	},
 
-  strat__createFromDNA: function(dna){
-    return dna;
-  },
+	getStats: function(){
+
+		return {
+			generation: this.generation,
+			hasWinner: this.strategy.hasWinner(this.Population.map(p => p.value)),
+			population: this.Population.map(u => ({ fitness: u.fitness, value: u.value }))
+		}
+	},
 	
 	// evolves the population by performing selection, crossover and mutations on the units
 	evolvePopulation : function(){
@@ -125,6 +139,8 @@ GeneticAlgorithm.prototype = {
 		this.Population.sort(function(unitA, unitB){
 			return unitA.index - unitB.index;
 		});
+
+		++this.generation;
 	},
 
 	// selects the best units from the current population
@@ -145,60 +161,20 @@ GeneticAlgorithm.prototype = {
 	
 	// performs a single point crossover between two parents
 	crossOver : function(dnaParentA, dnaParentB) {
-		return this.strat__crossOver(dnaParentA, dnaParentB);
-  },
-  
-  strat__crossOver: function(parentA, parentB){
-    // get a cross over cutting point
-		var cutPoint = this.random(0, parentA.length-1);
-		
-		// swap 'char' information between both parents:
-		// 1. left side to the crossover point is copied from one parent
-    // 2. right side after the crossover point is copied from the second parent
-    var arrA = Array.from(parentA);
-    var arrB = Array.from(parentB);
-
-    for (var i = cutPoint; i < arrA.length; i++){
-			var fromParentA = arrA[i];
-			arrA[i] = arrB[i];
-			arrB[i] = fromParentA;
-		}
-
-    var newA = arrA.join("");
-    var newB = arrB.join("");
-
-		return this.random(0, 1) == 1 ? newA : newB;
-  },
+		return this.strategy.crossOver(dnaParentA, dnaParentB);
+  	},
 	
 	// performs random mutations on the offspring
 	mutation : function (dna){
-		return this.strat__mutate(dna);
-	},
-	
-	// mutates a gene
-	strat__mutate : function (gene){
-		if (Math.random() < this.mutateRate) {
-			var mutateIndex = this.random(0, gene.length);
-      var arr = Array.from(gene);
-      arr[mutateIndex] = this.randomChar();
-      gene = arr.join("");
-		}else if(Math.random() < 0.04){
-      gene = gene.split("").reverse().join("");
-    }
-		
-		return gene;
+		return this.strategy.mutate(dna, this.mutateRate);
 	},
 	
 	random : function(min, max){
-    if(min > max){
-      [min, max] = [max, min];
-    }
+		if(min > max){
+			[min, max] = [max, min];
+		}
 		return Math.floor(Math.random()*(max-min+1) + min);
-  },
-  
-  randomChar: function(start = "a", end = "z"){
-    return String.fromCharCode(this.random(start.charCodeAt(0), end.charCodeAt(0)));
-  },
+  	},
 	
 	getRandomUnit : function(array){
 		return array[this.random(0, array.length-1)];
